@@ -1,0 +1,5 @@
+{
+  "name": "Gestión de Pedidos y Clientes",
+  "description": "Sistema de administración para el registro y seguimiento de clientes y sus pedidos, con búsqueda avanzada y modo oscuro.",
+  "requestFramePermissions": []
+}

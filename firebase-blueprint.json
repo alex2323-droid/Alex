@@ -1,0 +1,43 @@
+{
+  "entities": {
+    "Client": {
+      "title": "Client",
+      "description": "A customer who places orders",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "Full name of the client" },
+        "phone": { "type": "string", "description": "Phone number of the client" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string", "description": "Owner of this client record" }
+      },
+      "required": ["name", "phone", "userId"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "A request for a service or product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "description": "Name or description of the order" },
+        "price": { "type": "number", "description": "Price of the order" },
+        "clientId": { "type": "string", "description": "Reference to the client who made the order" },
+        "status": { "type": "string", "enum": ["pending", "completed", "cancelled"] },
+        "dueDate": { "type": "string", "format": "date-time", "description": "Scheduled date for the work" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "userId": { "type": "string", "description": "Owner of this order record" }
+      },
+      "required": ["name", "price", "clientId", "userId"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Collection of clients"
+    },
+    "/orders/{orderId}": {
+      "schema": "Order",
+      "description": "Collection of orders"
+    }
+  }
+}

@@ -1,0 +1,119 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: clients
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, size 1-100)
+    //   - phone: string (required, size 1-20)
+    //   - createdAt: timestamp (required)
+    //   - userId: string (required, matches auth.uid)
+    //
+    // Collection: orders
+    // Document ID: auto-generated
+    // Fields:
+    //   - name: string (required, size 1-200)
+    //   - price: number (required, positive)
+    //   - clientId: string (required, reference to clients)
+    //   - status: string (required, enum: pending, completed, cancelled)
+    //   - dueDate: timestamp (optional)
+    //   - createdAt: timestamp (required)
+    //   - userId: string (required, matches auth.uid)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function uidUnchanged() {
+      return request.resource.data.userId == request.auth.uid;
+    }
+
+    function uidNotModified() {
+      return request.resource.data.userId == resource.data.userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "alexparababi23@gmail.com" && request.auth.token.email_verified == true);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidClient(data) {
+      return hasRequiredFields(['name', 'phone', 'createdAt', 'userId']) &&
+             hasOnlyAllowedFields(['name', 'phone', 'createdAt', 'userId']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 20 &&
+             data.createdAt is timestamp &&
+             data.userId == request.auth.uid;
+    }
+
+    function isValidOrder(data) {
+      return hasRequiredFields(['name', 'price', 'clientId', 'status', 'createdAt', 'userId']) &&
+             hasOnlyAllowedFields(['name', 'price', 'clientId', 'status', 'dueDate', 'createdAt', 'userId']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+             data.price is number && data.price >= 0 &&
+             data.clientId is string &&
+             data.status in ['pending', 'completed', 'cancelled'] &&
+             (!('dueDate' in data) || data.dueDate == null || data.dueDate is timestamp) &&
+             data.createdAt is timestamp &&
+             data.userId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /clients/{clientId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidClient(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidOrder(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+    }
+    
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
