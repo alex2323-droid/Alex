@@ -8,12 +8,12 @@ export default defineConfig(({mode}) => {
   return {
     base: './',
     build: {
-      outDir: 'Docs',
+      outDir: 'docs',
       emptyOutDir: false,
     },
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
+      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY || ""),
     },
     resolve: {
       alias: {
