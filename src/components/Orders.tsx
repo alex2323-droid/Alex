@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { Search, Pencil, Trash2, DollarSign, User, Package, Clock, CheckCircle, XCircle, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Pencil, Trash2, DollarSign, User, Package, Clock, CheckCircle, XCircle, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -39,9 +39,9 @@ export function Orders() {
     const client = clients.find(c => c.id === o.clientId);
     const searchLower = search.toLowerCase();
     return (
-      o.name.toLowerCase().includes(searchLower) ||
-      (client?.name.toLowerCase().includes(searchLower)) ||
-      (client?.phone.includes(search))
+      (o.name || '').toLowerCase().includes(searchLower) ||
+      ((client?.name || '').toLowerCase().includes(searchLower)) ||
+      ((client?.phone || '').includes(search))
     );
   });
 
@@ -104,10 +104,52 @@ export function Orders() {
   const handleStatusChange = async (order: any, newStatus: string) => {
     try {
       await editOrder(order.id, order.name, order.price, order.clientId, newStatus as any);
-      toast.success(`Estado actualizado a ${newStatus === 'completed' ? 'Completado' : newStatus === 'cancelled' ? 'Cancelado' : 'Pendiente'}`);
+      toast.success(`Estado actualizado a ${newStatus === 'completed' ? 'Completado' : newStatus === 'in_progress' ? 'En Progreso' : newStatus === 'cancelled' ? 'Cancelado' : 'Pendiente'}`);
     } catch (error) {
       toast.error('Error al actualizar el estado');
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredOrders.length === 0) {
+      toast.error('No hay pedidos para exportar');
+      return;
+    }
+    const csvData = filteredOrders.map(o => {
+      const client = clients.find(c => c.id === o.clientId);
+      return {
+        'Nombre': client ? client.name : 'Desconocido',
+        'Pedido': o.name,
+        'Precio': o.price,
+        'Fecha': o.dueDate ? format(o.dueDate.toDate ? o.dueDate.toDate() : new Date(o.dueDate), 'yyyy-MM-dd') : 'Sin fecha'
+      };
+    });
+    
+    // Sort by Nombre, then Fecha
+    csvData.sort((a, b) => {
+      const nameCompare = a['Nombre'].localeCompare(b['Nombre']);
+      if (nameCompare !== 0) return nameCompare;
+      return a['Fecha'].localeCompare(b['Fecha']);
+    });
+    
+    const headers = Object.keys(csvData[0]).join(',');
+    const rows = csvData.map(row => 
+      Object.values(row).map(val => `"${val}"`).join(',')
+    ).join('\n');
+    const csv = `sep=,\n${headers}\n${rows}`;
+    
+    // Convert to UTF-16LE with BOM to avoid issues in some applications
+    // But since it's just CSV, we will just use standard \uFEFF for Excel compatibility
+    const finalCsvData = `\uFEFF${csv}`;
+    const blob = new Blob([finalCsvData], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `pedidos_${format(new Date(), 'yyyy-MM-dd')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success('Pedidos exportados exitosamente');
   };
 
   const getStatusBadge = (status: string) => {
@@ -117,6 +159,13 @@ export function Orders() {
           <Badge className="bg-amber-500 hover:bg-amber-600 text-white border-none shadow-sm px-2.5 py-0.5 flex items-center gap-1.5 font-semibold">
             <Clock className="h-3.5 w-3.5" />
             Pendiente
+          </Badge>
+        );
+      case 'in_progress': 
+        return (
+          <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-none shadow-sm px-2.5 py-0.5 flex items-center gap-1.5 font-semibold">
+            <Package className="h-3.5 w-3.5" />
+            En Progreso
           </Badge>
         );
       case 'completed': 
@@ -206,6 +255,7 @@ export function Orders() {
                         "text-[10px] p-1 rounded border truncate cursor-pointer hover:opacity-80 transition-opacity",
                         order.status === 'completed' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-700" :
                         order.status === 'cancelled' ? "bg-rose-500/10 border-rose-500/20 text-rose-700" :
+                        order.status === 'in_progress' ? "bg-blue-500/10 border-blue-500/20 text-blue-700" :
                         "bg-amber-500/10 border-amber-500/20 text-amber-700"
                       )}
                     >
@@ -228,25 +278,31 @@ export function Orders() {
           <h2 className="text-3xl font-bold tracking-tight">Pedidos</h2>
           <p className="text-muted-foreground">Gestiona los encargos y ventas.</p>
         </div>
-        <div className="flex bg-muted p-1 rounded-xl self-start">
-          <Button 
-            variant={view === 'list' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="rounded-lg"
-            onClick={() => setView('list')}
-          >
-            <List className="h-4 w-4 mr-2" />
-            Lista
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Button variant="outline" onClick={handleExportCSV}>
+            <Download className="h-4 w-4 mr-2" />
+            Exportar CSV
           </Button>
-          <Button 
-            variant={view === 'calendar' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            className="rounded-lg"
-            onClick={() => setView('calendar')}
-          >
-            <CalendarIcon className="h-4 w-4 mr-2" />
-            Calendario
-          </Button>
+          <div className="flex bg-muted p-1 rounded-xl self-start">
+            <Button 
+              variant={view === 'list' ? 'secondary' : 'ghost'} 
+              size="sm" 
+              className="rounded-lg"
+              onClick={() => setView('list')}
+            >
+              <List className="h-4 w-4 mr-2" />
+              Lista
+            </Button>
+            <Button 
+              variant={view === 'calendar' ? 'secondary' : 'ghost'} 
+              size="sm" 
+              className="rounded-lg"
+              onClick={() => setView('calendar')}
+            >
+              <CalendarIcon className="h-4 w-4 mr-2" />
+              Calendario
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -310,6 +366,9 @@ export function Orders() {
                               <DropdownMenuItem onClick={() => handleStatusChange(order, 'pending')}>
                                 Pendiente
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleStatusChange(order, 'in_progress')}>
+                                En Progreso
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleStatusChange(order, 'completed')}>
                                 Completado
                               </DropdownMenuItem>
@@ -367,6 +426,9 @@ export function Orders() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleStatusChange(order, 'pending')}>
                               Pendiente
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleStatusChange(order, 'in_progress')}>
+                              En Progreso
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleStatusChange(order, 'completed')}>
                               Completado
@@ -482,6 +544,7 @@ export function Orders() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="in_progress">En Progreso</SelectItem>
                     <SelectItem value="completed">Completado</SelectItem>
                     <SelectItem value="cancelled">Cancelado</SelectItem>
                   </SelectContent>

@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { GoogleGenAI } from "@google/genai";
 import { Button } from './ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Sparkles, Loader2 } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from './ui/card';
+import { Sparkles, Loader2, FileText, LogIn } from 'lucide-react';
 import { Client } from '../hooks/useClients';
 import { Order } from '../hooks/useOrders';
+import { useAuth } from '../hooks/useAuth';
+import { useGoogleDocs } from '../hooks/useGoogleDocs';
+import { toast } from 'sonner';
 
 interface OrderInsightsProps {
   clients: Client[];
@@ -14,6 +17,10 @@ interface OrderInsightsProps {
 export function OrderInsights({ clients, orders }: OrderInsightsProps) {
   const [insight, setInsight] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  const { accessToken, signIn, user } = useAuth();
+  const { createAndWriteDocument } = useGoogleDocs();
 
   const generateInsight = async () => {
     setLoading(true);
@@ -60,6 +67,28 @@ export function OrderInsights({ clients, orders }: OrderInsightsProps) {
     }
   };
 
+  const handleExport = async () => {
+    if (!insight) return;
+    setExporting(true);
+    try {
+      const title = `Reporte de Análisis (${new Date().toLocaleDateString('es-ES')})`;
+      const content = `Reporte de Análisis de Negocio\n\n${insight}\n\nGenerado con Google Docs Integration y Gemini AI.`;
+      const docId = await createAndWriteDocument(title, content);
+      
+      toast.success('Documento exportado con éxito', {
+        action: {
+          label: 'Abrir',
+          onClick: () => window.open(`https://docs.google.com/document/d/${docId}/edit`, '_blank')
+        }
+      });
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.error('Error al exportar a Google Docs');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Card className="bg-primary/5 border-primary/20">
       <CardHeader className="flex flex-row items-center justify-between space-y-0">
@@ -67,15 +96,37 @@ export function OrderInsights({ clients, orders }: OrderInsightsProps) {
           <Sparkles className="mr-2 h-5 w-5 text-primary" />
           IA Business Insights
         </CardTitle>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={generateInsight} 
-          disabled={loading || orders.length === 0}
-        >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-          {insight ? 'Actualizar' : 'Generar Análisis'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {!user ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => signIn()}
+            >
+              <LogIn className="h-4 w-4 mr-2" />
+              Sign in
+            </Button>
+          ) : insight && accessToken ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleExport}
+              disabled={exporting}
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <FileText className="h-4 w-4 mr-2" />}
+              {exporting ? 'Exportando...' : 'Exportar a Docs'}
+            </Button>
+          ) : null}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={generateInsight} 
+            disabled={loading || orders.length === 0}
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            {insight ? 'Actualizar' : 'Generar Análisis'}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         {insight ? (

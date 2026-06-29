@@ -8,7 +8,7 @@ export interface Order {
   name: string;
   price: number;
   clientId: string;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
   dueDate?: any;
   createdAt: any;
   userId: string;

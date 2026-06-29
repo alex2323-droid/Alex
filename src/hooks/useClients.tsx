@@ -7,6 +7,7 @@ export interface Client {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   createdAt: any;
   userId: string;
 }
@@ -43,12 +44,13 @@ export function useClients() {
     return unsubscribe;
   }, [user]);
 
-  const addClient = async (name: string, phone: string) => {
+  const addClient = async (name: string, phone: string, email?: string) => {
     if (!user) return;
     try {
       await addDoc(collection(db, 'clients'), {
         name,
         phone,
+        email: email || '',
         createdAt: Timestamp.now(),
         userId: user.uid
       });
@@ -57,11 +59,12 @@ export function useClients() {
     }
   };
 
-  const editClient = async (id: string, name: string, phone: string) => {
+  const editClient = async (id: string, name: string, phone: string, email?: string) => {
     try {
       await updateDoc(doc(db, 'clients', id), {
         name,
-        phone
+        phone,
+        email: email || ''
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `clients/${id}`);
