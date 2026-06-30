@@ -14,7 +14,7 @@ import { Search, Pencil, Trash2, DollarSign, User, Package, Clock, CheckCircle, 
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { cn } from '../lib/utils';
+import { cn, parseFirestoreDate } from '../lib/utils';
 
 export function Orders() {
   const { orders, addOrder, editOrder, removeOrder } = useOrders();
@@ -77,12 +77,13 @@ export function Orders() {
 
   const handleEdit = (order: any) => {
     setEditingOrder(order);
+    const parsedDate = parseFirestoreDate(order.dueDate);
     setFormData({ 
       name: order.name, 
       price: order.price.toString(), 
       clientId: order.clientId,
       status: order.status,
-      dueDate: order.dueDate ? (order.dueDate.toDate ? format(order.dueDate.toDate(), 'yyyy-MM-dd') : format(new Date(order.dueDate), 'yyyy-MM-dd')) : ''
+      dueDate: parsedDate ? format(parsedDate, 'yyyy-MM-dd') : ''
     });
     setIsAddOpen(true);
   };
@@ -117,11 +118,12 @@ export function Orders() {
     }
     const csvData = filteredOrders.map(o => {
       const client = clients.find(c => c.id === o.clientId);
+      const parsedDate = parseFirestoreDate(o.dueDate);
       return {
         'Nombre': client ? client.name : 'Desconocido',
         'Pedido': o.name,
         'Precio': o.price,
-        'Fecha': o.dueDate ? format(o.dueDate.toDate ? o.dueDate.toDate() : new Date(o.dueDate), 'yyyy-MM-dd') : 'Sin fecha'
+        'Fecha': parsedDate ? format(parsedDate, 'yyyy-MM-dd') : 'Sin fecha'
       };
     });
     
@@ -225,7 +227,10 @@ export function Orders() {
 
         <div className="grid grid-cols-7 auto-rows-fr">
           {calendarDays.map((day, idx) => {
-            const dayOrders = orders.filter(o => o.dueDate && isSameDay(o.dueDate.toDate ? o.dueDate.toDate() : new Date(o.dueDate), day));
+            const dayOrders = orders.filter(o => {
+              const parsedDate = parseFirestoreDate(o.dueDate);
+              return parsedDate && isSameDay(parsedDate, day);
+            });
             const isCurrentMonth = isSameMonth(day, monthStart);
             const isToday = isSameDay(day, new Date());
 
@@ -348,13 +353,16 @@ export function Orders() {
                           {order.dueDate ? (
                             <div className="flex items-center text-sm">
                               <CalendarIcon className="mr-2 h-3 w-3 text-primary" />
-                              {format(order.dueDate.toDate ? order.dueDate.toDate() : new Date(order.dueDate), "d 'de' MMM", { locale: es })}
+                              {(() => {
+                                const parsedDate = parseFirestoreDate(order.dueDate);
+                                return parsedDate ? format(parsedDate, "d 'de' MMM", { locale: es }) : '';
+                              })()}
                             </div>
                           ) : (
                             <span className="text-muted-foreground text-xs italic">Sin fecha</span>
                           )}
                         </TableCell>
-                        <TableCell>${order.price.toLocaleString()}</TableCell>
+                        <TableCell>${(typeof order.price === 'number' ? order.price : parseFloat(order.price || '0')).toLocaleString()}</TableCell>
                         <TableCell>
                           <DropdownMenu>
                             <DropdownMenuTrigger render={
@@ -411,12 +419,15 @@ export function Orders() {
                         {order.dueDate && (
                           <div className="flex items-center text-xs text-primary font-medium mt-1">
                             <CalendarIcon className="mr-1.5 h-3 w-3" />
-                            <span>Entrega: {format(order.dueDate.toDate ? order.dueDate.toDate() : new Date(order.dueDate), "d 'de' MMMM", { locale: es })}</span>
+                            <span>Entrega: {(() => {
+                              const parsedDate = parseFirestoreDate(order.dueDate);
+                              return parsedDate ? format(parsedDate, "d 'de' MMMM", { locale: es }) : '';
+                            })()}</span>
                           </div>
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-2 shrink-0">
-                        <span className="font-bold text-primary text-lg">${order.price.toLocaleString()}</span>
+                        <span className="font-bold text-primary text-lg">${(typeof order.price === 'number' ? order.price : parseFloat(order.price || '0')).toLocaleString()}</span>
                         <DropdownMenu>
                           <DropdownMenuTrigger render={
                             <button className="focus:outline-none cursor-pointer">

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Users, Package, Clock, CheckCircle, XCircle, TrendingUp, ArrowUpRight, ArrowDownRight, Calendar, UserPlus, PackagePlus, DollarSign } from 'lucide-react';
 import { OrderInsights } from './OrderInsights';
-import { cn } from '../lib/utils';
+import { cn, parseFirestoreDate } from '../lib/utils';
 import { format, subDays, isSameDay, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -102,17 +102,17 @@ export function Dashboard() {
   const completedOrders = orders.filter(o => o.status === 'completed').length;
   const totalRevenue = orders
     .filter(o => o.status === 'completed')
-    .reduce((sum, o) => sum + o.price, 0);
+    .reduce((sum, o) => sum + (typeof o.price === 'number' ? o.price : parseFloat(o.price as any) || 0), 0);
 
   // Chart Data: Revenue over last 7 days
   const chartData = Array.from({ length: 7 }).map((_, i) => {
     const date = subDays(new Date(), 6 - i);
-    const dayOrders = orders.filter(o => 
-      o.status === 'completed' && 
-      o.createdAt && 
-      isSameDay(o.createdAt.toDate ? o.createdAt.toDate() : new Date(o.createdAt), date)
-    );
-    const revenue = dayOrders.reduce((sum, o) => sum + o.price, 0);
+    const dayOrders = orders.filter(o => {
+      if (o.status !== 'completed' || !o.createdAt) return false;
+      const parsedDate = parseFirestoreDate(o.createdAt);
+      return parsedDate && isSameDay(parsedDate, date);
+    });
+    const revenue = dayOrders.reduce((sum, o) => sum + (typeof o.price === 'number' ? o.price : parseFloat(o.price as any) || 0), 0);
     return {
       name: format(date, 'EEE', { locale: es }),
       fullDate: format(date, "d 'de' MMMM", { locale: es }),
@@ -452,7 +452,10 @@ export function Dashboard() {
                         <p className="text-xs text-muted-foreground truncate">{client?.name || 'Cliente desconocido'}</p>
                         {order.dueDate && (
                           <span className="text-[10px] bg-primary/5 text-primary px-1.5 py-0.5 rounded-md font-medium">
-                            {format(order.dueDate.toDate ? order.dueDate.toDate() : new Date(order.dueDate), "d MMM", { locale: es })}
+                            {(() => {
+                              const parsedDate = parseFirestoreDate(order.dueDate);
+                              return parsedDate ? format(parsedDate, "d MMM", { locale: es }) : '';
+                            })()}
                           </span>
                         )}
                       </div>

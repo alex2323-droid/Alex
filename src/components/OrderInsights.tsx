@@ -25,14 +25,15 @@ export function OrderInsights({ clients, orders }: OrderInsightsProps) {
   const generateInsight = async () => {
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      // @ts-ignore
+      const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY || '' });
       
       const dataSummary = {
         totalClients: clients.length,
         totalOrders: orders.length,
         pendingOrders: orders.filter(o => o.status === 'pending').length,
         completedOrders: orders.filter(o => o.status === 'completed').length,
-        totalRevenue: orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + o.price, 0),
+        totalRevenue: orders.filter(o => o.status === 'completed').reduce((sum, o) => sum + (typeof o.price === 'number' ? o.price : parseFloat(o.price as any) || 0), 0),
         recentOrders: orders.slice(0, 5).map(o => ({
           name: o.name,
           price: o.price,
