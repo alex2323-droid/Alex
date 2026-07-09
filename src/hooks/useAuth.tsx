@@ -1,11 +1,14 @@
 import { useState, useEffect, createContext, useContext, ReactNode } from 'react';
-import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User } from '../firebase';
+import { auth, googleProvider, signInWithPopup, signOut, onAuthStateChanged, User, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword as firebaseUpdatePassword } from '../firebase';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   accessToken: string | null;
   signIn: () => Promise<void>;
+  signInWithEmail: (email: string, pass: string) => Promise<void>;
+  signUpWithEmail: (email: string, pass: string) => Promise<void>;
+  updateUserPassword: (pass: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -37,6 +40,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Error signing in:', error);
+      throw error;
+    }
+  };
+
+  const signInWithEmail = async (email: string, pass: string) => {
+    try {
+      await signInWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      console.error('Error signing in with email:', error);
+      throw error;
+    }
+  };
+
+  const signUpWithEmail = async (email: string, pass: string) => {
+    try {
+      await createUserWithEmailAndPassword(auth, email, pass);
+    } catch (error) {
+      console.error('Error signing up with email:', error);
+      throw error;
+    }
+  };
+
+  const updateUserPassword = async (pass: string) => {
+    if (!auth.currentUser) throw new Error('No user logged in');
+    try {
+      await firebaseUpdatePassword(auth.currentUser, pass);
+    } catch (error) {
+      console.error('Error updating password:', error);
+      throw error;
     }
   };
 
@@ -49,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, accessToken, signIn, logout }}>
+    <AuthContext.Provider value={{ user, loading, accessToken, signIn, signInWithEmail, signUpWithEmail, updateUserPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
