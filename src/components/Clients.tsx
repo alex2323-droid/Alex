@@ -23,6 +23,8 @@ export function Clients() {
   const { sendEmail } = useGmail();
   
   const [formData, setFormData] = useState({ name: '', phone: '', email: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredClients = clients.filter(c => 
     (c.name || '').toLowerCase().includes(search.toLowerCase()) || 
@@ -31,22 +33,36 @@ export function Clients() {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    if (!formData.name || !formData.phone) {
-      toast.error('Por favor completa todos los campos');
+    if (isSubmitting) return;
+
+    const trimmedName = formData.name.trim();
+    const trimmedPhone = formData.phone.trim();
+    const trimmedEmail = formData.email ? formData.email.trim() : '';
+
+    if (!trimmedName || !trimmedPhone) {
+      toast.error('Por favor completa todos los campos obligatorios');
       return;
     }
 
-    if (editingClient) {
-      await editClient(editingClient.id, formData.name, formData.phone, formData.email);
-      toast.success('Cliente actualizado');
-    } else {
-      await addClient(formData.name, formData.phone, formData.email);
-      toast.success('Cliente registrado');
+    setIsSubmitting(true);
+    try {
+      if (editingClient) {
+        await editClient(editingClient.id, trimmedName, trimmedPhone, trimmedEmail);
+        toast.success('Cliente actualizado correctamente');
+      } else {
+        await addClient(trimmedName, trimmedPhone, trimmedEmail);
+        toast.success('Cliente registrado correctamente');
+      }
+      
+      setIsAddOpen(false);
+      setEditingClient(null);
+      setFormData({ name: '', phone: '', email: '' });
+    } catch (err: any) {
+      console.error('Error al guardar cliente:', err);
+      toast.error('Error al guardar el cliente. Verifica tu conexión o datos.');
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsAddOpen(false);
-    setEditingClient(null);
-    setFormData({ name: '', phone: '', email: '' });
   };
 
   const handleEdit = (client: any) => {
@@ -61,11 +77,18 @@ export function Clients() {
   };
 
   const confirmDelete = async () => {
-    if (clientToDelete) {
+    if (!clientToDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
       await removeClient(clientToDelete);
-      toast.success('Cliente eliminado');
+      toast.success('Cliente eliminado correctamente');
       setIsDeleteOpen(false);
       setClientToDelete(null);
+    } catch (err: any) {
+      console.error('Error al eliminar cliente:', err);
+      toast.error('No se pudo eliminar el cliente.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -275,15 +298,24 @@ export function Clients() {
               />
             </div>
             <DialogFooter>
-              <Button type="submit" className="w-full">
-                {editingClient ? 'Guardar Cambios' : 'Registrar Cliente'}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  editingClient ? 'Guardar Cambios' : 'Registrar Cliente'
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => {
+        if (!isDeleting) setIsDeleteOpen(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>¿Eliminar cliente?</DialogTitle>
@@ -294,11 +326,18 @@ export function Clients() {
             </p>
           </div>
           <DialogFooter className="flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="flex-1">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="flex-1" disabled={isDeleting}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} className="flex-1">
-              Sí, eliminar
+            <Button variant="destructive" onClick={confirmDelete} className="flex-1" disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Sí, eliminar'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

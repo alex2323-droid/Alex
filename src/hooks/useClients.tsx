@@ -26,8 +26,7 @@ export function useClients() {
 
     const q = query(
       collection(db, 'clients'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -35,6 +34,19 @@ export function useClients() {
         id: doc.id,
         ...doc.data()
       })) as Client[];
+      
+      clientsData.sort((a, b) => {
+        const getTime = (val: any) => {
+          if (!val) return 0;
+          if (typeof val.toMillis === 'function') return val.toMillis();
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if (val.seconds) return val.seconds * 1000;
+          const parsed = new Date(val).getTime();
+          return isNaN(parsed) ? 0 : parsed;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+      
       setClients(clientsData);
       setLoading(false);
     }, (error) => {
@@ -45,39 +57,46 @@ export function useClients() {
   }, [user]);
 
   const addClient = async (name: string, phone: string, email?: string) => {
-    if (!user) return;
+    if (!user) throw new Error('No estás autenticado');
     try {
-      await addDoc(collection(db, 'clients'), {
-        name,
-        phone,
-        email: email || '',
+      const docRef = await addDoc(collection(db, 'clients'), {
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email ? email.trim() : '',
         createdAt: Timestamp.now(),
         userId: user.uid
       });
+      return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'clients');
+      throw error;
     }
   };
 
   const editClient = async (id: string, name: string, phone: string, email?: string) => {
     try {
       await updateDoc(doc(db, 'clients', id), {
-        name,
-        phone,
-        email: email || ''
+        name: name.trim(),
+        phone: phone.trim(),
+        email: email ? email.trim() : ''
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `clients/${id}`);
+      throw error;
     }
   };
 
   const removeClient = async (id: string) => {
-    if (!user) return;
+    if (!user) throw new Error('No estás autenticado');
     try {
       const batch = writeBatch(db);
       
-      // 1. Find all orders for this client
-      const ordersQuery = query(collection(db, 'orders'), where('clientId', '==', id));
+      // 1. Find all orders for this client belonging to this user
+      const ordersQuery = query(
+        collection(db, 'orders'), 
+        where('userId', '==', user.uid),
+        where('clientId', '==', id)
+      );
       const ordersSnapshot = await getDocs(ordersQuery);
       
       // 2. Add order deletions to batch
@@ -92,6 +111,7 @@ export function useClients() {
       await batch.commit();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `clients/${id}`);
+      throw error;
     }
   };
 

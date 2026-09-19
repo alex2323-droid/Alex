@@ -67,25 +67,48 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
 
-    function isValidClient(data) {
+    function isValidClientCreate(data) {
       return hasRequiredFields(['name', 'phone', 'createdAt', 'userId']) &&
-             hasOnlyAllowedFields(['name', 'phone', 'createdAt', 'userId']) &&
-             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
-             data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 20 &&
+             hasOnlyAllowedFields(['name', 'phone', 'createdAt', 'userId', 'email']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 150 &&
+             data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 50 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 150)) &&
              data.createdAt is timestamp &&
              data.userId == request.auth.uid;
     }
 
-    function isValidOrder(data) {
+    function isValidClientUpdate(data) {
+      return hasRequiredFields(['name', 'phone', 'userId']) &&
+             hasOnlyAllowedFields(['name', 'phone', 'createdAt', 'userId', 'email']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 150 &&
+             data.phone is string && data.phone.size() >= 1 && data.phone.size() <= 50 &&
+             (!('email' in data) || data.email == null || (data.email is string && data.email.size() <= 150)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             data.userId == resource.data.userId;
+    }
+
+    function isValidOrderCreate(data) {
       return hasRequiredFields(['name', 'price', 'clientId', 'status', 'createdAt', 'userId']) &&
              hasOnlyAllowedFields(['name', 'price', 'clientId', 'status', 'dueDate', 'createdAt', 'userId']) &&
              data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
              data.price is number && data.price >= 0 &&
-             data.clientId is string &&
-             data.status in ['pending', 'completed', 'cancelled'] &&
+             data.clientId is string && data.clientId.size() >= 1 &&
+             data.status in ['pending', 'in_progress', 'completed', 'cancelled'] &&
              (!('dueDate' in data) || data.dueDate == null || data.dueDate is timestamp) &&
              data.createdAt is timestamp &&
              data.userId == request.auth.uid;
+    }
+
+    function isValidOrderUpdate(data) {
+      return hasRequiredFields(['name', 'price', 'clientId', 'status', 'userId']) &&
+             hasOnlyAllowedFields(['name', 'price', 'clientId', 'status', 'dueDate', 'createdAt', 'userId']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 200 &&
+             data.price is number && data.price >= 0 &&
+             data.clientId is string && data.clientId.size() >= 1 &&
+             data.status in ['pending', 'in_progress', 'completed', 'cancelled'] &&
+             (!('dueDate' in data) || data.dueDate == null || data.dueDate is timestamp) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             data.userId == resource.data.userId;
     }
 
     // ===============================================================
@@ -94,15 +117,15 @@ service cloud.firestore {
 
     match /clients/{clientId} {
       allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && isValidClient(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidClient(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
+      allow create: if isAuthenticated() && isValidClientCreate(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidClientUpdate(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /orders/{orderId} {
       allow read: if isAuthenticated() && (resource == null || resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isAuthenticated() && isValidOrder(request.resource.data);
-      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidOrder(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
+      allow create: if isAuthenticated() && isValidOrderCreate(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidOrderUpdate(request.resource.data) && (isAdmin() || request.resource.data.userId == resource.data.userId);
       allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 

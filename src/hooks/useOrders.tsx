@@ -28,8 +28,7 @@ export function useOrders() {
 
     const q = query(
       collection(db, 'orders'),
-      where('userId', '==', user.uid),
-      orderBy('createdAt', 'desc')
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -37,6 +36,19 @@ export function useOrders() {
         id: doc.id,
         ...doc.data()
       })) as Order[];
+      
+      ordersData.sort((a, b) => {
+        const getTime = (val: any) => {
+          if (!val) return 0;
+          if (typeof val.toMillis === 'function') return val.toMillis();
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if (val.seconds) return val.seconds * 1000;
+          const parsed = new Date(val).getTime();
+          return isNaN(parsed) ? 0 : parsed;
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
+      });
+      
       setOrders(ordersData);
       setLoading(false);
     }, (error) => {
@@ -47,10 +59,10 @@ export function useOrders() {
   }, [user]);
 
   const addOrder = async (name: string, price: number, clientId: string, dueDate?: Date) => {
-    if (!user) return;
+    if (!user) throw new Error('No estás autenticado');
     try {
-      await addDoc(collection(db, 'orders'), {
-        name,
+      const docRef = await addDoc(collection(db, 'orders'), {
+        name: name.trim(),
         price,
         clientId,
         status: 'pending',
@@ -58,15 +70,17 @@ export function useOrders() {
         createdAt: Timestamp.now(),
         userId: user.uid
       });
+      return docRef.id;
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'orders');
+      throw error;
     }
   };
 
   const editOrder = async (id: string, name: string, price: number, clientId: string, status: Order['status'], dueDate?: Date) => {
     try {
       await updateDoc(doc(db, 'orders', id), {
-        name,
+        name: name.trim(),
         price,
         clientId,
         status,
@@ -74,6 +88,7 @@ export function useOrders() {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `orders/${id}`);
+      throw error;
     }
   };
 
@@ -82,6 +97,7 @@ export function useOrders() {
       await deleteDoc(doc(db, 'orders', id));
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `orders/${id}`);
+      throw error;
     }
   };
 

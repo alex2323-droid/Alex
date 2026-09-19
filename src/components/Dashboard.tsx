@@ -8,7 +8,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from './ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Users, Package, Clock, CheckCircle, XCircle, TrendingUp, ArrowUpRight, ArrowDownRight, Calendar, UserPlus, PackagePlus, DollarSign } from 'lucide-react';
+import { Users, Package, Clock, CheckCircle, XCircle, TrendingUp, ArrowUpRight, ArrowDownRight, Calendar, UserPlus, PackagePlus, DollarSign, Loader2 } from 'lucide-react';
 import { OrderInsights } from './OrderInsights';
 import { cn, parseFirestoreDate } from '../lib/utils';
 import { format, subDays, isSameDay, startOfDay } from 'date-fns';
@@ -38,34 +38,63 @@ export function Dashboard() {
   
   const [clientForm, setClientForm] = useState({ name: '', phone: '' });
   const [orderForm, setOrderForm] = useState({ name: '', price: '', clientId: '' });
+  const [isSubmittingClient, setIsSubmittingClient] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
 
   const handleClientSubmit = async (e: any) => {
     e.preventDefault();
-    if (!clientForm.name || !clientForm.phone) {
+    if (isSubmittingClient) return;
+
+    const trimmedName = clientForm.name.trim();
+    const trimmedPhone = clientForm.phone.trim();
+
+    if (!trimmedName || !trimmedPhone) {
       toast.error('Por favor completa todos los campos');
       return;
     }
-    await addClient(clientForm.name, clientForm.phone);
-    toast.success('Cliente registrado');
-    setIsClientDialogOpen(false);
-    setClientForm({ name: '', phone: '' });
+
+    setIsSubmittingClient(true);
+    try {
+      await addClient(trimmedName, trimmedPhone);
+      toast.success('Cliente registrado correctamente');
+      setIsClientDialogOpen(false);
+      setClientForm({ name: '', phone: '' });
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al registrar el cliente');
+    } finally {
+      setIsSubmittingClient(false);
+    }
   };
 
   const handleOrderSubmit = async (e: any) => {
     e.preventDefault();
-    if (!orderForm.name || !orderForm.price || !orderForm.clientId) {
+    if (isSubmittingOrder) return;
+
+    const trimmedName = orderForm.name.trim();
+
+    if (!trimmedName || !orderForm.price || !orderForm.clientId) {
       toast.error('Por favor completa todos los campos');
       return;
     }
     const priceNum = parseFloat(orderForm.price);
-    if (isNaN(priceNum)) {
+    if (isNaN(priceNum) || priceNum < 0) {
       toast.error('Precio inválido');
       return;
     }
-    await addOrder(orderForm.name, priceNum, orderForm.clientId);
-    toast.success('Pedido registrado');
-    setIsOrderDialogOpen(false);
-    setOrderForm({ name: '', price: '', clientId: '' });
+
+    setIsSubmittingOrder(true);
+    try {
+      await addOrder(trimmedName, priceNum, orderForm.clientId);
+      toast.success('Pedido registrado correctamente');
+      setIsOrderDialogOpen(false);
+      setOrderForm({ name: '', price: '', clientId: '' });
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al registrar el pedido');
+    } finally {
+      setIsSubmittingOrder(false);
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -195,7 +224,16 @@ export function Dashboard() {
                   />
                 </div>
                 <DialogFooter>
-                  <Button type="submit" className="w-full">Registrar Cliente</Button>
+                  <Button type="submit" className="w-full" disabled={isSubmittingClient}>
+                    {isSubmittingClient ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Registrando...
+                      </>
+                    ) : (
+                      'Registrar Cliente'
+                    )}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>
@@ -256,7 +294,16 @@ export function Dashboard() {
                   </Select>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" className="w-full">Registrar Pedido</Button>
+                  <Button type="submit" className="w-full" disabled={isSubmittingOrder}>
+                    {isSubmittingOrder ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Registrando...
+                      </>
+                    ) : (
+                      'Registrar Pedido'
+                    )}
+                  </Button>
                 </DialogFooter>
               </form>
             </DialogContent>

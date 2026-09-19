@@ -10,7 +10,7 @@ import { Label } from './ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Badge } from './ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu';
-import { Search, Pencil, Trash2, DollarSign, User, Package, Clock, CheckCircle, XCircle, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Search, Pencil, Trash2, DollarSign, User, Package, Clock, CheckCircle, XCircle, Calendar as CalendarIcon, List, ChevronLeft, ChevronRight, Download, Loader2 } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -34,6 +34,8 @@ export function Orders() {
     status: 'pending' as any,
     dueDate: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const filteredOrders = orders.filter(o => {
     const client = clients.find(c => c.id === o.clientId);
@@ -47,32 +49,44 @@ export function Orders() {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-    if (!formData.name || !formData.price || !formData.clientId) {
+    if (isSubmitting) return;
+
+    const trimmedName = formData.name.trim();
+
+    if (!trimmedName || !formData.price || !formData.clientId) {
       toast.error('Por favor completa todos los campos');
       return;
     }
 
     const priceNum = parseFloat(formData.price);
-    if (isNaN(priceNum)) {
+    if (isNaN(priceNum) || priceNum < 0) {
       toast.error('El precio debe ser un número válido');
       return;
     }
 
-    if (editingOrder) {
-      const dateParts = formData.dueDate ? formData.dueDate.split('-').map(Number) : null;
-      const dueDate = dateParts ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]) : undefined;
-      await editOrder(editingOrder.id, formData.name, priceNum, formData.clientId, formData.status, dueDate);
-      toast.success('Pedido actualizado');
-    } else {
-      const dateParts = formData.dueDate ? formData.dueDate.split('-').map(Number) : null;
-      const dueDate = dateParts ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]) : undefined;
-      await addOrder(formData.name, priceNum, formData.clientId, dueDate);
-      toast.success('Pedido registrado');
+    setIsSubmitting(true);
+    try {
+      if (editingOrder) {
+        const dateParts = formData.dueDate ? formData.dueDate.split('-').map(Number) : null;
+        const dueDate = dateParts ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]) : undefined;
+        await editOrder(editingOrder.id, trimmedName, priceNum, formData.clientId, formData.status, dueDate);
+        toast.success('Pedido actualizado correctamente');
+      } else {
+        const dateParts = formData.dueDate ? formData.dueDate.split('-').map(Number) : null;
+        const dueDate = dateParts ? new Date(dateParts[0], dateParts[1] - 1, dateParts[2]) : undefined;
+        await addOrder(trimmedName, priceNum, formData.clientId, dueDate);
+        toast.success('Pedido registrado correctamente');
+      }
+      
+      setIsAddOpen(false);
+      setEditingOrder(null);
+      setFormData({ name: '', price: '', clientId: '', status: 'pending', dueDate: '' });
+    } catch (err: any) {
+      console.error('Error al guardar pedido:', err);
+      toast.error('Error al guardar el pedido');
+    } finally {
+      setIsSubmitting(false);
     }
-    
-    setIsAddOpen(false);
-    setEditingOrder(null);
-    setFormData({ name: '', price: '', clientId: '', status: 'pending', dueDate: '' });
   };
 
   const handleEdit = (order: any) => {
@@ -94,11 +108,18 @@ export function Orders() {
   };
 
   const confirmDelete = async () => {
-    if (orderToDelete) {
+    if (!orderToDelete || isDeleting) return;
+    setIsDeleting(true);
+    try {
       await removeOrder(orderToDelete);
-      toast.success('Pedido eliminado');
+      toast.success('Pedido eliminado correctamente');
       setIsDeleteOpen(false);
       setOrderToDelete(null);
+    } catch (err: any) {
+      console.error('Error al eliminar pedido:', err);
+      toast.error('No se pudo eliminar el pedido');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -563,15 +584,24 @@ export function Orders() {
               </div>
             )}
             <DialogFooter>
-              <Button type="submit" className="w-full">
-                {editingOrder ? 'Guardar Cambios' : 'Registrar Pedido'}
+              <Button type="submit" className="w-full" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  editingOrder ? 'Guardar Cambios' : 'Registrar Pedido'
+                )}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
+      <Dialog open={isDeleteOpen} onOpenChange={(open) => {
+        if (!isDeleting) setIsDeleteOpen(open);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>¿Eliminar pedido?</DialogTitle>
@@ -582,11 +612,18 @@ export function Orders() {
             </p>
           </div>
           <DialogFooter className="flex-row gap-2">
-            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="flex-1">
+            <Button variant="outline" onClick={() => setIsDeleteOpen(false)} className="flex-1" disabled={isDeleting}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={confirmDelete} className="flex-1">
-              Sí, eliminar
+            <Button variant="destructive" onClick={confirmDelete} className="flex-1" disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Eliminando...
+                </>
+              ) : (
+                'Sí, eliminar'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
